@@ -1,20 +1,17 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import './login.css'; // Optional CSS file for styling
 
-const Login = () => {
+const Login = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const navigate = useNavigate();
-
   const handleSubmit = (event) => {
     event.preventDefault();
-    
+
     // Example login logic
     if (email === 'user@gmail.com' && password === 'user') {
-      navigate('/dashboard'); // Redirect to Dashboard
+      onLogin(); // Call the function passed from App
     } else {
       setError('Invalid email or password');
     }

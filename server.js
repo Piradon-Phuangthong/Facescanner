@@ -1,3 +1,4 @@
+require('dotenv').config(); // Add this line to load environment variables
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
@@ -12,7 +13,8 @@ app.use(bodyParser.json());
 app.use(cors());
 
 // MongoDB Connection
-mongoose.connect('mongodb://127.0.0.1:27017/users', {
+const mongoURI = process.env.MONGO_URI; // Retrieve MongoDB URI from .env
+mongoose.connect(mongoURI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
