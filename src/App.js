@@ -4,13 +4,19 @@ import Login from './login';
 import Dashboard from './Protected/Dashboard';
 
 function App() {
-  const [isAuthenticated, setIsAuthenicated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Login onLogin={() => setIsAuthenicated(true)} />} />
-        <Route path="/dashboard" element={isAuthenticated ? <Dashboard/> : <Navigate to = "/" replace />} />
+        <Route 
+          path="/" 
+          element={<Login onLogin={() => setIsAuthenticated(true)} />} 
+        />
+        <Route 
+          path="/dashboard" 
+          element={isAuthenticated ? <Dashboard /> : <Navigate to="/" replace />} 
+        />
       </Routes>
     </Router>
   );

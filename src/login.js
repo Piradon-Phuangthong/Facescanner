@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios'; // Import axios for making API requests
 import './login.css'; // Optional CSS file for styling
 
 const Login = ({ onLogin }) => {
@@ -6,16 +7,30 @@ const Login = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-
-    // Example login logic
-    if (email === 'user@gmail.com' && password === 'user') {
-      onLogin(); // Call the function passed from App
-    } else {
-      setError('Invalid email or password');
+    try {
+      // Send a POST request to the login route
+      const response = await axios.post('http://localhost:5001/login', {
+        email,
+        password,
+      });
+  
+      if (response.status === 200) {
+        console.log("Login successful, redirecting to dashboard...");
+        onLogin(); // Call the function passed from App to set authentication
+        
+      } 
+    } catch (err) {
+      // Handle errors from the server
+      if (err.response && err.response.data.message) {
+        setError(err.response.data.message);
+      } else {
+        setError('An error occurred. Please try again.');
+      }
     }
   };
+  
 
   return (
     <div className="login-container">

@@ -2,15 +2,15 @@ require('dotenv').config(); // Add this line to load environment variables
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
-const cors = require('cors');
+const cors = require('cors'); // Import cors middleware
 const bcrypt = require('bcrypt');
 
 const app = express();
-const PORT = 5000;
+const PORT = 5001;
 
 // Middleware
 app.use(bodyParser.json());
-app.use(cors());
+app.use(cors()); // Enable CORS for all routes
 
 // MongoDB Connection
 const mongoURI = process.env.MONGO_URI; // Retrieve MongoDB URI from .env
