@@ -20,6 +20,7 @@ const Login = ({ onLogin }) => {
         console.log("Login successful, redirecting to dashboard...");
         onLogin(); // Call the function passed from App to set authentication
         
+        
       } 
     } catch (err) {
       // Handle errors from the server
