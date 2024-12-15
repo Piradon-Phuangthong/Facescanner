@@ -1,55 +1,175 @@
-require('dotenv').config(); // Add this line to load environment variables
+require('dotenv').config(); // Load environment variables
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
-const cors = require('cors'); // Import cors middleware
+const cors = require('cors');
 const bcrypt = require('bcrypt');
+const nodemailer = require('nodemailer'); // For sending emails
+const crypto = require('crypto'); // For generating random codes
 
 const app = express();
-const PORT = 5001;
+const PORT = process.env.PORT || 5001;
 
 // Middleware
 app.use(bodyParser.json());
-app.use(cors()); // Enable CORS for all routes
+app.use(cors());
 
 // MongoDB Connection
-const mongoURI = process.env.MONGO_URI; // Retrieve MongoDB URI from .env
-mongoose.connect(mongoURI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-const db = mongoose.connection;
-db.on('error', console.error.bind(console, 'Connection error:'));
-db.once('open', () => console.log('MongoDB connected.'));
+const mongoURI = process.env.MONGO_URI;
+mongoose
+  .connect(mongoURI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log('MongoDB connected.'))
+  .catch((err) => {
+    console.error('MongoDB connection error:', err.message);
+    process.exit(1);
+  });
 
 // User Schema
 const userSchema = new mongoose.Schema({
-  email: String,
-  password: String,
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  isVerified: { type: Boolean, default: false },
+  verificationCode: { type: String, required: true }, // Store verification code
 });
 
 const User = mongoose.model('User', userSchema);
 
-// Seed a User (Run this once)
-const seedUser = async () => {
-  const hashedPassword = await bcrypt.hash('user', 10);
-  const user = new User({ email: 'user@gmail.com', password: hashedPassword });
-  await user.save();
-  console.log('User seeded');
+// Nodemailer Transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER, // Your Gmail address
+    pass: process.env.EMAIL_PASS, // Your Gmail App Password
+  },
+});
+
+// Utility Function to Send Email
+const sendVerificationEmail = async (email, code) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: 'Email Confirmation Code',
+    text: `Your verification code is: ${code}`,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Verification email sent to ${email}`);
+  } catch (error) {
+    console.error('Error sending email:', error.message);
+  }
 };
-// Uncomment the next line to seed the user, then re-comment after running once.
-// seedUser();
 
-// Login Route
-app.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ email });
+// Register Route
+app.post('/register', async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-  if (user && (await bcrypt.compare(password, user.password))) {
-    res.status(200).send({ message: 'Login successful' });
-  } else {
-    res.status(400).send({ message: 'Invalid email or password' });
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+    
+    // Check if email already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
+
+    // Hash the password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Generate a random verification code
+    const verificationCode = crypto.randomBytes(3).toString('hex'); // 6-character code
+    console.log(verificationCode);
+    // Create new user with unverified status
+    const newUser = new User({
+      email,
+      password: hashedPassword,
+      verificationCode,
+      isVerified: false,
+    });
+
+    await newUser.save();
+
+    // Send email with verification code
+    await sendVerificationEmail(email, verificationCode);
+
+    res.status(201).json({ message: 'Registration successful. Check your email for the verification code.' });
+  } catch (error) {
+    console.error('Registration error:', error.message);
+    res.status(500).json({ message: 'Server error, please try again' });
   }
 });
 
+app.post('/verify-email', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+
+    console.log('Received email:', email);  // Log email
+    console.log('Received code:', code);    // Log code
+
+    // Validate input
+    if (!email || !code) {
+      return res.status(400).json({ message: 'Email and code are required' });
+    }
+
+    // Find user by email and code
+    const user = await User.findOne({ email, verificationCode: code });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid verification code or email' });
+    }
+
+    // Update user status to verified
+    user.isVerified = true;
+    // user.verificationCode = ''; // Clear the code
+    await user.save();
+
+    res.status(200).json({ message: 'Email verified successfully. You can now log in.' });
+  } catch (error) {
+    console.error('Verification error:', error.message);
+    res.status(500).json({ message: 'Server error, please try again' });
+  }
+});
+
+
+// Login Route
+app.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid email or password' });
+    }
+
+    if (!user.isVerified) {
+      return res.status(403).json({ message: 'Please verify your email before logging in.' });
+    }
+
+    // Compare password
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      return res.status(400).json({ message: 'Invalid email or password' });
+    }
+
+    res.status(200).json({ message: 'Login successful' });
+  } catch (error) {
+    console.error('Login error:', error.message);
+    res.status(500).json({ message: 'Server error, please try again' });
+  }
+});
+
+// Start Server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
