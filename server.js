@@ -171,5 +171,64 @@ app.post('/login', async (req, res) => {
   }
 });
 
+// Request Password Reset Route
+app.post('/request-reset', async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'Email not found' });
+    }
+
+    // Generate a reset code
+    const resetCode = crypto.randomBytes(3).toString('hex'); // 6-character code
+    user.verificationCode = resetCode;
+    await user.save();
+
+    // Send reset email
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Password Reset Code',
+      text: `Your password reset code is: ${resetCode}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({ message: 'Reset code sent to your email.' });
+  } catch (error) {
+    console.error('Password reset request error:', error.message);
+    res.status(500).json({ message: 'Server error, please try again.' });
+  }
+});
+
+// Verify Reset Code Route
+app.post('/verify-reset-code', async (req, res) => {
+  const { email, newPassword, code } = req.body;
+
+  try {
+    const user = await User.findOne({ email, verificationCode: code });
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid reset code or email' });
+    }
+
+    // Hash the new password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update user password and clear reset code
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({ message: 'Code verified successfully.' });
+  } catch (error) {
+    console.error('Verification error:', error.message);
+    res.status(500).json({ message: 'Server error, please try again.' });
+  }
+});
+
+
+
 // Start Server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
